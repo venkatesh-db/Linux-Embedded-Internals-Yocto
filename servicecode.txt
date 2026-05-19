@@ -1,0 +1,12 @@
+
+[Unit]
+Description= Mini Ilo thread services
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/coder
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
