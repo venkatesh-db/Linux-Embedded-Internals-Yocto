@@ -1,0 +1,401 @@
+
+
+```bash id="nsvc01"
+# ============================================================
+# NESTED YOCTO SERVICES EXAMPLE
+# sensor-monitor  --->  fan-control
+#
+# fan-control depends on sensor-monitor
+#
+# STRUCTURE
+#
+# meta-ilo/
+# └── recipes-core/
+#     ├── sensor-monitor/
+#     └── fan-control/
+#
+# ============================================================
+
+
+
+# ============================================================
+# STEP 1 — CREATE FOLDERS
+# ============================================================
+
+cd build 
+
+# ============================================================
+# STEP 3 — Create Custom Layer
+# ============================================================
+
+bitbake-layers create-layer ../meta-ilo
+
+
+# ============================================================
+# STEP 4 — Add Layer
+# ============================================================
+
+bitbake-layers add-layer ../meta-ilo
+
+
+# ============================================================
+# STEP 5 — Verify Layer
+# ============================================================
+
+bitbake-layers show-layers
+
+
+
+
+mkdir -p ../meta-ilo/recipes-core/sensor-monitor/files
+
+mkdir -p ../meta-ilo/recipes-core/fan-control/files
+
+
+
+# ============================================================
+# STEP 2 — SENSOR MONITOR APPLICATION
+# ============================================================
+
+cat > ../meta-ilo/recipes-core/sensor-monitor/files/sensor-monitor.cpp << 'EOF'
+
+#include <iostream>
+#include <fstream>
+#include <unistd.h>
+
+int main()
+{
+    while (true)
+    {
+        std::ofstream sensorFile("/tmp/sensor-data");
+
+        sensorFile << "TEMP=42" << std::endl;
+
+        sensorFile.close();
+
+        std::cout << "Sensor monitor updated temperature" << std::endl;
+
+        sleep(5);
+    }
+
+    return 0;
+}
+
+EOF
+
+
+
+# ============================================================
+# STEP 3 — SENSOR MONITOR SERVICE
+# ============================================================
+
+cat > ../meta-ilo/recipes-core/sensor-monitor/files/sensor-monitor.service << 'EOF'
+
+[Unit]
+Description=Sensor Monitor Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/sensor-monitor
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+EOF
+
+
+
+# ============================================================
+# STEP 4 — SENSOR MONITOR RECIPE
+# ============================================================
+
+cat > ../meta-ilo/recipes-core/sensor-monitor/sensor-monitor_1.0.bb << 'EOF'
+
+DESCRIPTION = "Sensor Monitor Service"
+
+LICENSE = "MIT"
+
+LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302"
+
+SRC_URI = " \
+    file://sensor-monitor.cpp \
+    file://sensor-monitor.service \
+"
+
+S = "${WORKDIR}"
+
+inherit systemd
+
+SYSTEMD_SERVICE:${PN} = "sensor-monitor.service"
+
+do_compile() {
+
+    ${CXX} ${CXXFLAGS} sensor-monitor.cpp -o sensor-monitor
+
+}
+
+do_install() {
+
+    install -d ${D}${bindir}
+
+    install -m 0755 sensor-monitor \
+        ${D}${bindir}/sensor-monitor
+
+    install -d ${D}${systemd_system_unitdir}
+
+    install -m 0644 \
+        ${WORKDIR}/sensor-monitor.service \
+        ${D}${systemd_system_unitdir}/sensor-monitor.service
+}
+
+FILES:${PN} += " \
+    ${bindir}/sensor-monitor \
+    ${systemd_system_unitdir}/sensor-monitor.service \
+"
+
+EOF
+
+
+
+# ============================================================
+# STEP 5 — FAN CONTROL APPLICATION
+# ============================================================
+
+cat > ../meta-ilo/recipes-core/fan-control/files/fan-control.cpp << 'EOF'
+
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <unistd.h>
+
+int main()
+{
+    while (true)
+    {
+        std::ifstream sensorFile("/tmp/sensor-data");
+
+        std::string temperature;
+
+        std::getline(sensorFile, temperature);
+
+        sensorFile.close();
+
+        std::cout << "Fan Control Read: " << temperature << std::endl;
+
+        sleep(5);
+    }
+
+    return 0;
+}
+
+EOF
+
+
+
+# ============================================================
+# STEP 6 — FAN CONTROL SERVICE
+# ============================================================
+
+cat > ../meta-ilo/recipes-core/fan-control/files/fan-control.service << 'EOF'
+
+[Unit]
+Description=Fan Control Service
+
+# IMPORTANT NESTED DEPENDENCY
+Requires=sensor-monitor.service
+After=sensor-monitor.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/fan-control
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+EOF
+
+
+
+# ============================================================
+# STEP 7 — FAN CONTROL RECIPE
+# ============================================================
+
+cat > ../meta-ilo/recipes-core/fan-control/fan-control_1.0.bb << 'EOF'
+
+DESCRIPTION = "Fan Control Service"
+
+LICENSE = "MIT"
+
+LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302"
+
+SRC_URI = " \
+    file://fan-control.cpp \
+    file://fan-control.service \
+"
+
+S = "${WORKDIR}"
+
+inherit systemd
+
+DEPENDS += ""
+
+RDEPENDS:${PN} += "sensor-monitor"
+
+SYSTEMD_SERVICE:${PN} = "fan-control.service"
+
+do_compile() {
+
+    ${CXX} ${CXXFLAGS} fan-control.cpp -o fan-control
+
+}
+
+do_install() {
+
+    install -d ${D}${bindir}
+
+    install -m 0755 fan-control \
+        ${D}${bindir}/fan-control
+
+    install -d ${D}${systemd_system_unitdir}
+
+    install -m 0644 \
+        ${WORKDIR}/fan-control.service \
+        ${D}${systemd_system_unitdir}/fan-control.service
+}
+
+FILES:${PN} += " \
+    ${bindir}/fan-control \
+    ${systemd_system_unitdir}/fan-control.service \
+"
+
+EOF
+
+
+
+# ============================================================
+# STEP 8 — ADD BOTH PACKAGES TO IMAGE
+# ============================================================
+
+echo 'IMAGE_INSTALL:append = " sensor-monitor fan-control"' >> conf/local.conf
+
+nano conf/local.conf
+
+Add in local.conf below at the End 
+
+
+DISTRO_FEATURES:append = " systemd"
+
+VIRTUAL-RUNTIME_init_manager = "systemd"
+
+VIRTUAL-RUNTIME_initscripts = ""
+
+INIT_MANAGER = "systemd"
+
+
+
+# ============================================================
+# STEP 9 — BUILD IMAGE
+# ============================================================
+
+sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+
+bitbake core-image-minimal
+
+
+
+# ============================================================
+# STEP 10 — RUN QEMU
+# ============================================================
+
+runqemu qemuarm64 nographic
+
+
+
+# ============================================================
+# STEP 11 — VERIFY SERVICES
+# ============================================================
+
+systemctl status sensor-monitor
+
+systemctl status fan-control
+
+
+
+# ============================================================
+# STEP 12 — VERIFY DEPENDENCY
+# ============================================================
+
+systemctl list-dependencies fan-control
+
+
+
+# ============================================================
+# STEP 13 — CHECK LOGS
+# ============================================================
+
+journalctl -u sensor-monitor
+
+journalctl -u fan-control
+
+
+
+# ============================================================
+# EXPECTED OUTPUT
+# ============================================================
+
+Sensor monitor updated temperature
+
+Fan Control Read: TEMP=42
+
+
+
+# ============================================================
+# VERIFY BOTH PROCESSES
+# ============================================================
+
+ps -ef | grep sensor
+
+
+
+# ============================================================
+# VERIFY GENERATED FILE
+# ============================================================
+
+cat /tmp/sensor-data
+
+
+
+# ============================================================
+# REAL PRODUCTION FLOW
+#
+# sensor-monitor
+#        ↓
+# temperature data
+#        ↓
+# fan-control
+#        ↓
+# thermal management
+#
+# ============================================================
+
+
+
+# ============================================================
+# REAL OPENBMC-LIKE NESTED FLOW
+#
+# phosphor-hwmon
+#        ↓
+# dbus sensor values
+#        ↓
+# fan-control
+#        ↓
+# host-state-manager
+#        ↓
+# power policies
+#
+# ============================================================
+```
