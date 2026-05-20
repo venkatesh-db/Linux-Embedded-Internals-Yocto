@@ -142,6 +142,17 @@ echo 'IMAGE_INSTALL:append = " sensor-monitor"' >> conf/local.conf
 # STEP 11 — Build Image
 # ============================================================
 
+
+DISTRO_FEATURES:append = " systemd"
+
+VIRTUAL-RUNTIME_init_manager = "systemd"
+
+VIRTUAL-RUNTIME_initscripts = ""
+
+INIT_MANAGER = "systemd"
+
+
+
 bitbake core-image-minimal
 
 
