@@ -106,7 +106,10 @@ inherit systemd
 SYSTEMD_SERVICE:${PN} = "sensor-monitor.service"
 
 do_compile() {
-    ${CXX} ${CXXFLAGS} sensor-monitor.cpp -o sensor-monitor
+
+    ${CXX} ${CXXFLAGS} ${LDFLAGS} \
+        sensor-monitor.cpp \
+        -o sensor-monitor
 }
 
 do_install() {
