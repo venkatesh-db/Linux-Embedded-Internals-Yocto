@@ -1,0 +1,135 @@
+
+Real Enterprise Runtime
+
+Developer Laptop
+      ↓
+VPN
+      ↓
+Remote Lab
+      ↓
+BMC Server
+      ↓
+SSH
+      ↓
+gdbserver
+      ↓
+Firmware Process
+
+
+
+# ============================================================
+# STEP 1 — Install GDB
+# ============================================================
+
+sudo apt update
+
+sudo apt install -y \
+gdb \
+gdb-multiarch
+
+
+# ============================================================
+# STEP 1 — Create Debug App
+# ============================================================
+
+mkdir -p ~/firmware-debug
+
+cd ~/firmware-debug
+
+cat > sensor-app.cpp << 'EOF'
+
+#include <iostream>
+#include <unistd.h>
+
+int main()
+{
+    int temperature = 40;
+
+    while (true)
+    {
+        std::cout << "Temperature = "
+                  << temperature
+                  << std::endl;
+
+        temperature++;
+
+        sleep(3);
+    }
+
+    return 0;
+}
+
+EOF
+
+
+g++ -g sensor-app.cpp -o sensor-app
+
+aarch64-linux-gnu-g++ \
+-g \
+sensor-app.cpp \
+-o sensor-app
+
+file sensor-app
+
+
+// Copy Binary To Remote Firmware
+
+scp sensor-app root@192.168.1.100:/tmp/
+
+
+//Install gdbserver On Firmware
+
+which gdbserver
+
+
+make menuconfig
+
+IMAGE_INSTALL:append = " gdbserver"
+
+
+On Remote Firmware
+
+cd /tmp
+
+gdbserver :2345 ./sensor-app
+
+On Host Ubuntu
+
+gdb-multiarch sensor-app
+
+
+target remote 192.168.1.100:2345
+
+
+# Set breakpoint
+break main
+
+# Continue
+continue
+
+# Next line
+next
+
+# Step inside
+step
+
+# Print variable
+print temperature
+
+# Show backtrace
+bt
+
+# Show threads
+info threads
+
+# Quit
+quit
+
+
+break main
+
+continue
+
+print temperature
+
+

@@ -1,0 +1,451 @@
+
+
+# ============================================================
+# STEP 1 — Update Ubuntu
+# ============================================================
+
+sudo apt update
+
+
+# ============================================================
+# STEP 2 — Install Yocto Dependencies
+# ============================================================
+
+sudo apt install -y \
+gawk wget git diffstat unzip texinfo gcc build-essential \
+chrpath socat cpio python3 python3-pip python3-pexpect \
+xz-utils debianutils iputils-ping python3-git python3-jinja2 \
+libegl1-mesa libsdl1.2-dev pylint xterm zstd \
+liblz4-tool file locales
+
+
+# ============================================================
+# STEP 3 — Verify Git
+# ============================================================
+
+git --version
+
+
+# ============================================================
+# STEP 1 — Create Workspace
+# ============================================================
+
+mkdir -p ~/yocto-training
+
+
+# ============================================================
+# STEP 2 — Enter Workspace
+# ============================================================
+
+cd ~/yocto-training
+
+
+# ============================================================
+# STEP 3 — Clone Poky
+# ============================================================
+
+git clone https://git.yoctoproject.org/poky
+
+
+# ============================================================
+# STEP 4 — Enter Poky
+# ============================================================
+
+cd poky
+
+
+# ============================================================
+# STEP 5 — Checkout Stable Branch
+# ============================================================
+
+git checkout kirkstone
+
+
+# ============================================================
+# STEP 1 — Setup Build Environment
+# ============================================================
+
+source oe-init-build-env
+
+# ============================================================
+# STEP 1 — Open local.conf
+# ============================================================
+
+vi conf/local.conf
+
+MACHINE ??= "qemux86-64"
+
+MACHINE ??= "qemuarm64"
+
+
+DISTRO_FEATURES:append = " systemd"
+
+VIRTUAL-RUNTIME_init_manager = "systemd"
+
+VIRTUAL-RUNTIME_initscripts = ""
+
+INIT_MANAGER = "systemd"
+
+BB_NUMBER_THREADS = "8"
+
+PARALLEL_MAKE = "-j8"
+
+bitbake -e | grep ^MACHINE=
+
+# ============================================================
+# STEP 1 — Ubuntu Namespace Fix
+# ============================================================
+
+sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+
+# ============================================================
+# STEP 2 — Build Minimal Image
+# ============================================================
+
+bitbake core-image-minimal
+
+# ============================================================
+# STEP 1 — Run QEMU
+# ============================================================
+
+runqemu qemuarm64 nographic
+
+uname -a
+
+
+# ============================================================
+# STEP 1 — Go To Poky
+# ============================================================
+
+cd ~/yocto-training/poky
+
+
+# ============================================================
+# STEP 2 — Setup Environment
+# ============================================================
+
+source oe-init-build-env
+
+
+# ============================================================
+# STEP 3 — Create Layer
+# ============================================================
+
+bitbake-layers create-layer ../meta-ilo
+
+
+# ============================================================
+# STEP 4 — Add Layer
+# ============================================================
+
+bitbake-layers add-layer ../meta-ilo
+
+
+# ============================================================
+# STEP 5 — Verify Layer
+# ============================================================
+
+bitbake-layers show-layers
+
+
+# ============================================================
+# STEP 1 — Create RootFS Recipe Directory
+# ============================================================
+
+mkdir -p ../meta-ilo/recipes-core/custom-rootfs/files
+
+
+# ============================================================
+# STEP 2 — Create MOTD Banner
+# ============================================================
+
+cat > ../meta-ilo/recipes-core/custom-rootfs/files/motd << 'EOF'
+
+==========================================
+      Jai Ganesha Embedded Linux
+==========================================
+
+Welcome to Custom Yocto RootFS
+
+EOF
+
+
+# ============================================================
+# STEP 3 — Create Startup Script
+# ============================================================
+
+cat > ../meta-ilo/recipes-core/custom-rootfs/files/startup.sh << 'EOF'
+
+#!/bin/sh
+
+echo "Custom startup script running..."
+
+date > /tmp/startup-time.log
+
+EOF
+
+
+# ============================================================
+# STEP 4 — Give Execute Permission
+# ============================================================
+
+chmod +x \
+../meta-ilo/recipes-core/custom-rootfs/files/startup.sh
+
+
+cat > ../meta-ilo/recipes-core/custom-rootfs/custom-rootfs_1.0.bb << 'EOF'
+
+DESCRIPTION = "Custom RootFS Files"
+
+LICENSE = "MIT"
+
+LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302"
+
+SRC_URI = " \
+    file://motd \
+    file://startup.sh \
+"
+
+S = "${WORKDIR}"
+
+do_install() {
+
+    install -d ${D}${sysconfdir}
+
+    install -m 0644 motd \
+        ${D}${sysconfdir}/motd
+
+    install -d ${D}${bindir}
+
+    install -m 0755 startup.sh \
+        ${D}${bindir}/startup.sh
+}
+
+FILES:${PN} += " \
+    ${sysconfdir}/motd \
+    ${bindir}/startup.sh \
+"
+
+EOF
+
+
+echo 'IMAGE_INSTALL:append = " custom-rootfs"' \
+>> conf/local.conf
+
+
+# ============================================================
+# STEP 1 — Create Recipe Directory
+# ============================================================
+
+mkdir -p \
+../meta-ilo/recipes-core/sensor-monitor/files
+
+
+cat > \
+../meta-ilo/recipes-core/sensor-monitor/files/sensor-monitor.cpp << 'EOF'
+
+#include <iostream>
+#include <unistd.h>
+
+int main()
+{
+    while (true)
+    {
+        std::cout << "Sensor monitor running" << std::endl;
+
+        sleep(5);
+    }
+
+    return 0;
+}
+
+EOF
+
+
+cat > \
+../meta-ilo/recipes-core/sensor-monitor/files/sensor-monitor.service << 'EOF'
+
+[Unit]
+Description=Sensor Monitor Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/sensor-monitor
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+EOF
+
+
+cat > \
+../meta-ilo/recipes-core/sensor-monitor/sensor-monitor_1.0.bb << 'EOF'
+
+DESCRIPTION = "Sensor Monitor Service"
+
+LICENSE = "MIT"
+
+LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302"
+
+SRC_URI = " \
+    file://sensor-monitor.cpp \
+    file://sensor-monitor.service \
+"
+
+S = "${WORKDIR}"
+
+inherit systemd
+
+SYSTEMD_SERVICE:${PN} = "sensor-monitor.service"
+
+SYSTEMD_AUTO_ENABLE = "enable"
+
+do_compile() {
+
+    ${CXX} ${CXXFLAGS} ${LDFLAGS} \
+        sensor-monitor.cpp \
+        -o sensor-monitor
+}
+
+do_install() {
+
+    install -d ${D}${bindir}
+
+    install -m 0755 sensor-monitor \
+        ${D}${bindir}/sensor-monitor
+
+    install -d ${D}${systemd_system_unitdir}
+
+    install -m 0644 \
+        ${WORKDIR}/sensor-monitor.service \
+        ${D}${systemd_system_unitdir}/sensor-monitor.service
+}
+
+FILES:${PN} += " \
+    ${bindir}/sensor-monitor \
+    ${systemd_system_unitdir}/sensor-monitor.service \
+"
+
+EOF
+
+
+echo 'IMAGE_INSTALL:append = " sensor-monitor"' \
+>> conf/local.conf
+
+
+# ============================================================
+# STEP 1 — Create Kernel Directory
+# ============================================================
+
+mkdir -p \
+../meta-ilo/recipes-kernel/linux/files
+
+
+cat > \
+../meta-ilo/recipes-kernel/linux/files/custom.cfg << 'EOF'
+
+CONFIG_PRINTK=y
+CONFIG_PROC_FS=y
+CONFIG_SYSFS=y
+
+CONFIG_IKCONFIG=y
+CONFIG_IKCONFIG_PROC=y
+
+CONFIG_TMPFS=y
+
+EOF
+
+
+cat > \
+../meta-ilo/recipes-kernel/linux/linux-yocto_%.bbappend << 'EOF'
+
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
+
+SRC_URI += " file://custom.cfg"
+
+EOF
+
+
+bitbake-layers show-appends
+
+
+# ============================================================
+# STEP 1 — Clean Kernel
+# ============================================================
+
+bitbake -c clean linux-yocto
+
+
+# ============================================================
+# STEP 2 — Apply Kernel Config
+# ============================================================
+
+bitbake -c kernel_configme linux-yocto
+
+
+# ============================================================
+# STEP 3 — Build Full Image
+# ============================================================
+
+bitbake core-image-minimal
+
+# ============================================================
+# STEP 1 — Run QEMU
+# ============================================================
+
+runqemu qemuarm64 nographic
+
+
+cat /etc/motd
+
+/usr/bin/startup.sh
+
+cat /tmp/startup-time.log
+
+
+systemctl status sensor-monitor
+
+journalctl -u sensor-monitor
+
+zcat /proc/config.gz | grep CONFIG_PRINTK
+
+
+uname -a
+
+
+# Show layers
+bitbake-layers show-layers
+
+# Show appends
+bitbake-layers show-appends
+
+# Show recipes
+bitbake-layers show-recipes
+
+# Show kernel provider
+bitbake -e virtual/kernel | grep ^PN=
+
+# Build logs
+find tmp/work -name "log.do_compile"
+
+# Build dependency graph
+bitbake -g core-image-minimal
+
+# Open kernel menuconfig
+bitbake -c menuconfig linux-yocto
+
+# View build stats
+ls tmp/buildstats/
+
+# Monitor CPU
+top
+
+# Monitor memory
+free -h
+
+# Monitor disk
+df -h
+

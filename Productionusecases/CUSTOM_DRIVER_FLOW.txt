@@ -1,0 +1,476 @@
+
+# =====================================================================
+# COMPLETE BUILDROOT CUSTOM DRIVER FLOW
+#
+# WHAT THIS BUILDS
+#
+# Ubuntu
+#    ↓
+# Buildroot
+#    ↓
+# Custom Kernel Driver
+#    ↓
+# Kernel Module (.ko)
+#    ↓
+# RootFS
+#    ↓
+# QEMU Boot
+#    ↓
+# Driver Verification
+#
+# VERIFIED FOR:
+# Buildroot 2024.02
+# Ubuntu 22.04 / 24.04
+# QEMU x86_64
+#
+# =====================================================================
+
+
+
+# =====================================================================
+# STEP 1 — INSTALL DEPENDENCIES
+# =====================================================================
+
+sudo apt update
+
+
+sudo apt install -y \
+build-essential \
+git \
+wget \
+cpio \
+unzip \
+rsync \
+bc \
+bison \
+flex \
+libssl-dev \
+qemu-system-x86 \
+file
+
+
+
+# =====================================================================
+# STEP 2 — CREATE WORKSPACE
+# =====================================================================
+
+mkdir -p ~/buildroot-training
+
+
+cd ~/buildroot-training
+
+
+
+# =====================================================================
+# STEP 3 — CLONE BUILDROOT
+# =====================================================================
+
+git clone https://github.com/buildroot/buildroot.git
+
+
+
+# =====================================================================
+# STEP 4 — ENTER BUILDROOT
+# =====================================================================
+
+cd buildroot
+
+
+
+# =====================================================================
+# STEP 5 — CHECKOUT STABLE VERSION
+# =====================================================================
+
+git checkout 2024.02
+
+
+
+# =====================================================================
+# STEP 6 — LOAD QEMU CONFIG
+# =====================================================================
+
+make qemu_x86_64_defconfig
+
+
+
+# =====================================================================
+# STEP 7 — VERIFY CONFIG
+# =====================================================================
+
+cat .config | grep BR2_x86_64
+
+
+
+# =====================================================================
+# STEP 8 — BUILD FIRST TIME
+# =====================================================================
+
+make
+
+
+
+# =====================================================================
+# STEP 9 — VERIFY BUILD OUTPUT
+# =====================================================================
+
+ls output/images/
+
+
+
+# EXPECTED FILES
+#
+# bzImage
+# rootfs.ext2
+# start-qemu.sh
+#
+# =====================================================================
+
+
+
+# =====================================================================
+# STEP 10 — RUN QEMU FIRST TIME
+# =====================================================================
+
+./output/images/start-qemu.sh
+
+
+
+# =====================================================================
+# STEP 11 — VERIFY BASIC SYSTEM
+# =====================================================================
+
+uname -a
+
+
+exit
+
+
+
+# =====================================================================
+# STEP 12 — CREATE CUSTOM DRIVER DIRECTORY
+# =====================================================================
+
+mkdir -p package/custom-driver/src
+
+
+
+# =====================================================================
+# STEP 13 — CREATE KERNEL DRIVER SOURCE
+# =====================================================================
+
+cat > package/custom-driver/src/custom_driver.c << 'EOF'
+
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/init.h>
+
+static int __init custom_driver_init(void)
+{
+    printk(KERN_INFO "Custom driver loaded successfully\n");
+
+    return 0;
+}
+
+static void __exit custom_driver_exit(void)
+{
+    printk(KERN_INFO "Custom driver unloaded successfully\n");
+}
+
+module_init(custom_driver_init);
+
+module_exit(custom_driver_exit);
+
+MODULE_LICENSE("GPL");
+
+MODULE_AUTHOR("Venkatesh");
+
+MODULE_DESCRIPTION("Simple Buildroot Custom Driver");
+
+EOF
+
+
+
+# =====================================================================
+# STEP 14 — CREATE KERNEL MODULE MAKEFILE
+# =====================================================================
+
+cat > package/custom-driver/src/Makefile << 'EOF'
+
+obj-m += custom_driver.o
+
+EOF
+
+
+
+# =====================================================================
+# STEP 15 — CREATE BUILDROOT PACKAGE MAKEFILE
+# =====================================================================
+
+cat > package/custom-driver/custom-driver.mk << 'EOF'
+
+################################################################################
+#
+# custom-driver
+#
+################################################################################
+
+CUSTOM_DRIVER_VERSION = 1.0
+
+CUSTOM_DRIVER_SITE = $(TOPDIR)/package/custom-driver/src
+
+CUSTOM_DRIVER_SITE_METHOD = local
+
+$(eval $(kernel-module))
+
+$(eval $(generic-package))
+
+EOF
+
+
+
+# =====================================================================
+# STEP 16 — CREATE Buildroot Config.in
+# =====================================================================
+
+cat > package/custom-driver/Config.in << 'EOF'
+
+config BR2_PACKAGE_CUSTOM_DRIVER
+    bool "custom-driver"
+    help
+      Simple custom kernel driver module
+
+EOF
+
+
+
+# =====================================================================
+# STEP 17 — REGISTER PACKAGE IN BUILDROOT
+# =====================================================================
+
+echo 'source "package/custom-driver/Config.in"' \
+>> package/Config.in
+
+
+
+# =====================================================================
+# STEP 18 — OPEN Buildroot menuconfig
+# =====================================================================
+
+make menuconfig
+
+
+
+# =====================================================================
+# ENABLE DRIVER
+#
+# Target packages
+#     →
+# custom-driver
+#
+# Press SPACE to enable
+#
+# Save and Exit
+# =====================================================================
+
+
+
+# =====================================================================
+# STEP 19 — VERIFY DRIVER ENABLED
+# =====================================================================
+
+grep CUSTOM_DRIVER .config
+
+
+
+# EXPECTED
+#
+# BR2_PACKAGE_CUSTOM_DRIVER=y
+#
+# =====================================================================
+
+
+
+# =====================================================================
+# STEP 20 — BUILD DRIVER + IMAGE
+# =====================================================================
+
+make
+
+
+
+# =====================================================================
+# STEP 21 — VERIFY DRIVER MODULE GENERATED
+# =====================================================================
+
+find output/ -name "*.ko"
+
+
+
+# EXPECTED
+#
+# custom_driver.ko
+#
+# =====================================================================
+
+
+
+# =====================================================================
+# STEP 22 — VERIFY DRIVER PACKAGE
+# =====================================================================
+
+find output/target -name "*.ko"
+
+
+
+# =====================================================================
+# STEP 23 — RUN FINAL QEMU
+# =====================================================================
+
+./output/images/start-qemu.sh
+
+
+
+# =====================================================================
+# STEP 24 — VERIFY DRIVER LOADED
+# =====================================================================
+
+lsmod
+
+
+
+# =====================================================================
+# STEP 25 — VERIFY DRIVER LOGS
+# =====================================================================
+
+dmesg | grep Custom
+
+
+
+# EXPECTED OUTPUT
+#
+# Custom driver loaded successfully
+#
+# =====================================================================
+
+
+
+# =====================================================================
+# STEP 26 — VERIFY MODULE LOCATION
+# =====================================================================
+
+find /lib/modules -name "*.ko"
+
+
+
+# =====================================================================
+# STEP 27 — REMOVE DRIVER
+# =====================================================================
+
+rmmod custom_driver
+
+
+
+# =====================================================================
+# STEP 28 — VERIFY DRIVER REMOVED
+# =====================================================================
+
+dmesg | tail
+
+
+
+# EXPECTED
+#
+# Custom driver unloaded successfully
+#
+# =====================================================================
+
+
+
+# =====================================================================
+# STEP 29 — LOAD DRIVER MANUALLY
+# =====================================================================
+
+modprobe custom_driver
+
+
+
+# =====================================================================
+# STEP 30 — VERIFY AGAIN
+# =====================================================================
+
+lsmod
+
+
+dmesg | tail
+
+
+
+# =====================================================================
+# IMPORTANT DEBUG COMMANDS
+# =====================================================================
+
+# Kernel logs
+dmesg
+
+# Loaded modules
+lsmod
+
+# Verify module info
+modinfo /lib/modules/*/extra/custom_driver.ko
+
+# Verify kernel version
+uname -r
+
+# Check module dependencies
+depmod -a
+
+# Search driver
+find / -name "custom_driver.ko"
+
+# Verify QEMU process
+ps -ef | grep qemu
+
+# Check Buildroot output
+ls output/images/
+
+# View kernel config
+zcat /proc/config.gz
+
+# =====================================================================
+
+
+
+# =====================================================================
+# REAL PRODUCTION FLOW
+#
+# Buildroot
+#      ↓
+# Linux Kernel
+#      ↓
+# Custom Driver
+#      ↓
+# Kernel Module
+#      ↓
+# RootFS
+#      ↓
+# Firmware Image
+#      ↓
+# QEMU Validation
+#
+# =====================================================================
+
+
+
+# =====================================================================
+# REAL ENTERPRISE DRIVER EXAMPLES
+#
+# GPIO Driver
+# I2C Driver
+# SPI Driver
+# UART Driver
+# PWM Fan Driver
+# Thermal Driver
+# EEPROM Driver
+# Network Driver
+#
+# =====================================================================

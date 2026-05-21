@@ -1,0 +1,127 @@
+
+# ============================================================
+# STEP 1 — Go To Poky Directory
+# ============================================================
+
+cd ~/poky
+
+
+# ============================================================
+# STEP 2 — Setup Yocto Environment
+# ============================================================
+
+source oe-init-build-env
+
+
+# ============================================================
+# STEP 3 — Show Recipe Dependencies
+# ============================================================
+
+bitbake -g core-image-minimal
+
+
+# ============================================================
+# GENERATED FILES
+# ============================================================
+
+# pn-buildlist
+# task-depends.dot
+# recipe-depends.dot
+
+
+# ============================================================
+# STEP 4 — View Build List
+# ============================================================
+
+cat pn-buildlist
+
+
+# ============================================================
+# STEP 5 — Install Graphviz
+# ============================================================
+
+sudo apt install graphviz -y
+
+
+# ============================================================
+# STEP 6 — Generate Dependency Graph PNG
+# ============================================================
+
+dot -Tpng task-depends.dot -o task-depends.png
+
+
+# ============================================================
+# STEP 7 — Open Dependency Graph
+# ============================================================
+
+xdg-open task-depends.png
+
+
+# ============================================================
+# STEP 8 — Show Package Providers
+# ============================================================
+
+bitbake-layers show-recipes
+
+
+# ============================================================
+# STEP 9 — Find Specific Package Provider
+# ============================================================
+
+bitbake-layers show-recipes | grep sensor-monitor
+
+
+# ============================================================
+# STEP 10 — Debug Missing Dependency
+# ============================================================
+
+bitbake sensor-monitor
+
+
+# ============================================================
+# COMMON ERROR
+# ============================================================
+
+# Nothing PROVIDES 'sensor-monitor'
+
+
+# ============================================================
+# FIX CHECKS
+# ============================================================
+
+# Verify layer added
+bitbake-layers show-layers
+
+# Verify bb recipe exists
+find ../meta-ilo -name "*.bb"
+
+# Verify layer.conf
+cat ../meta-ilo/conf/layer.conf
+
+
+# ============================================================
+# STEP 11 — Check Runtime Dependencies
+# ============================================================
+
+oe-pkgdata-util list-pkg-files sensor-monitor
+
+
+# ============================================================
+# STEP 12 — Check Package Dependencies
+# ============================================================
+
+oe-pkgdata-util read-value RDEPENDS sensor-monitor
+
+
+# ============================================================
+# OPTIONAL DEBUG COMMANDS
+# ============================================================
+
+# Show appends
+bitbake-layers show-appends
+
+# Show overlayed recipes
+bitbake-layers show-overlayed
+
+# Build dependency graph
+bitbake -g sensor-monitor

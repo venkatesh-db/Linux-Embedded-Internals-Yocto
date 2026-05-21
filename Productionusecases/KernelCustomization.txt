@@ -1,0 +1,166 @@
+# ============================================================
+# STEP 1 — Go To Poky Directory
+# ============================================================
+
+cd ~/poky
+
+
+# ============================================================
+# STEP 2 — Setup Yocto Environment
+# ============================================================
+
+source oe-init-build-env
+
+
+# ============================================================
+# STEP 3 — Verify Active Kernel Provider
+# ============================================================
+
+bitbake -e virtual/kernel | grep ^PN=
+
+
+# ============================================================
+# EXPECTED OUTPUT
+# ============================================================
+
+# Usually:
+# PN="linux-yocto"
+
+
+# ============================================================
+# STEP 4 — Create Kernel Layer Directory
+# ============================================================
+
+mkdir -p ../meta-ilo/recipes-kernel/linux/files
+
+
+# ============================================================
+# STEP 5 — Create Kernel Config Fragment
+# ============================================================
+
+cat > ../meta-ilo/recipes-kernel/linux/files/custom.cfg << 'EOF'
+
+CONFIG_PRINTK=y
+CONFIG_PROC_FS=y
+CONFIG_SYSFS=y
+CONFIG_TMPFS=y
+
+CONFIG_IKCONFIG=y
+CONFIG_IKCONFIG_PROC=y
+
+EOF
+
+
+# ============================================================
+# STEP 6 — Create Kernel bbappend
+# ============================================================
+
+cat > ../meta-ilo/recipes-kernel/linux/linux-yocto_%.bbappend << 'EOF'
+
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
+
+SRC_URI += " file://custom.cfg"
+
+EOF
+
+
+# ============================================================
+# STEP 7 — Verify Layer Sees bbappend
+# ============================================================
+
+bitbake-layers show-appends
+
+
+# ============================================================
+# STEP 8 — Clean Kernel
+# ============================================================
+
+bitbake -c clean linux-yocto
+
+
+# ============================================================
+# STEP 9 — Apply Kernel Config
+# ============================================================
+
+bitbake -c kernel_configme linux-yocto
+
+
+# ============================================================
+# STEP 10 — Build Kernel
+# ============================================================
+
+bitbake linux-yocto
+
+
+# ============================================================
+# STEP 11 — Build Full Image
+# ============================================================
+
+bitbake core-image-minimal
+
+
+# ============================================================
+# STEP 12 — Run QEMU
+# ============================================================
+
+runqemu qemux86-64 nographic
+
+
+# ============================================================
+# STEP 13 — Verify Kernel Config
+# ============================================================
+
+zcat /proc/config.gz | grep CONFIG_PRINTK
+
+
+# ============================================================
+# STEP 14 — Verify IKCONFIG
+# ============================================================
+
+zcat /proc/config.gz | grep CONFIG_IKCONFIG
+
+
+# ============================================================
+# STEP 15 — Verify Kernel Version
+# ============================================================
+
+uname -a
+
+
+# ============================================================
+# STEP 16 — Verify Proc Filesystem
+# ============================================================
+
+mount | grep proc
+
+
+# ============================================================
+# EXPECTED OUTPUT
+# ============================================================
+
+CONFIG_PRINTK=y
+
+CONFIG_IKCONFIG=y
+
+
+# ============================================================
+# OPTIONAL DEBUG COMMANDS
+# ============================================================
+
+# Verify bbappend detected
+bitbake-layers show-appends
+
+# Verify kernel fragments
+bitbake -e linux-yocto | grep SRC_URI
+
+# Open kernel menuconfig
+bitbake -c menuconfig linux-yocto
+
+# Check deployed kernel images
+ls tmp/deploy/images/qemux86-64/
+
+# Verify bzImage
+file tmp/deploy/images/qemux86-64/bzImage
+
+# View kernel logs
+dmesg | less
