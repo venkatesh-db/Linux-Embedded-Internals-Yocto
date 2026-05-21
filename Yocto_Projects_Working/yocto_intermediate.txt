@@ -17,6 +17,9 @@
 # ============================================================
 
 
+Inside meta-ilo 
+recipes-core folder move or cut to another place 
+
 
 # ============================================================
 # STEP 1 — CREATE FOLDERS
