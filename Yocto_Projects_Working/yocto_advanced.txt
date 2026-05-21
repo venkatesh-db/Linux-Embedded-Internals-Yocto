@@ -160,7 +160,7 @@ SYSTEMD_SERVICE:${PN} = "sensor-monitor.service"
 
 do_compile() {
 
-    ${CXX} ${CXXFLAGS} sensor-monitor.cpp -o sensor-monitor
+    ${CXX} ${CXXFLAGS} ${LDFLAGS}  sensor-monitor.cpp -o sensor-monitor
 
 }
 
@@ -270,7 +270,7 @@ SYSTEMD_SERVICE:${PN} = "dbus-publisher.service"
 
 do_compile() {
 
-    ${CXX} ${CXXFLAGS} dbus-publisher.cpp -o dbus-publisher
+    ${CXX} ${CXXFLAGS}  ${LDFLAGS} dbus-publisher.cpp -o dbus-publisher
 
 }
 
@@ -374,7 +374,7 @@ SYSTEMD_SERVICE:${PN} = "fan-control.service"
 
 do_compile() {
 
-    ${CXX} ${CXXFLAGS} fan-control.cpp -o fan-control
+    ${CXX} ${CXXFLAGS} ${LDFLAGS} fan-control.cpp -o fan-control
 
 }
 
@@ -468,7 +468,7 @@ SYSTEMD_SERVICE:${PN} = "watchdog-monitor.service"
 
 do_compile() {
 
-    ${CXX} ${CXXFLAGS} watchdog-monitor.cpp -o watchdog-monitor
+    ${CXX} ${CXXFLAGS} ${LDFLAGS} watchdog-monitor.cpp -o watchdog-monitor
 
 }
 
@@ -562,7 +562,7 @@ SYSTEMD_SERVICE:${PN} = "host-state-manager.service"
 
 do_compile() {
 
-    ${CXX} ${CXXFLAGS} host-state-manager.cpp -o host-state-manager
+    ${CXX} ${CXXFLAGS}  ${LDFLAGS} host-state-manager.cpp -o host-state-manager
 
 }
 
@@ -705,8 +705,6 @@ journalctl -u host-state-manager
 # IMPORTANT DEBUG COMMANDS
 # =====================================================================
 
-# Verify processes
-ps -ef
 
 # Follow all logs live
 journalctl -f
@@ -714,8 +712,6 @@ journalctl -f
 # Restart one service
 systemctl restart fan-control
 
-# Check startup timing
-systemd-analyze blame
 
 # Check failed services
 systemctl --failed
