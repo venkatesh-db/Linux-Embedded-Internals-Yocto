@@ -311,8 +311,8 @@ bitbake core-image-minimal
 # STEP 10 — RUN QEMU
 # ============================================================
 
-runqemu qemuarm64 nographic
 
+runqemu qemux86-64 nographic
 
 
 # ============================================================
