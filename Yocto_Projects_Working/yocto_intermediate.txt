@@ -132,7 +132,7 @@ SYSTEMD_SERVICE:${PN} = "sensor-monitor.service"
 
 do_compile() {
 
-    ${CXX} ${CXXFLAGS} sensor-monitor.cpp -o sensor-monitor
+    ${CXX} ${CXXFLAGS} ${LDFLAGS} sensor-monitor.cpp -o sensor-monitor
 
 }
 
@@ -248,7 +248,7 @@ SYSTEMD_SERVICE:${PN} = "fan-control.service"
 
 do_compile() {
 
-    ${CXX} ${CXXFLAGS} fan-control.cpp -o fan-control
+    ${CXX} ${CXXFLAGS} ${LDFLAGS} fan-control.cpp -o fan-control
 
 }
 
